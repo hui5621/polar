@@ -19,19 +19,25 @@ DATA_SOURCES.md                        环境数据来源
 python -m pip install -e .
 ```
 
-在一个场景上使用 5 个随机种子运行 S-IACO 和 SAG-PPO：
+在一个场景上使用论文的 5 个随机种子运行 S-IACO 和 SAG-PPO：
 
 ```bash
-polar-train --algorithm sagppo --scene 2025-08-05 --seeds 0 1 2 3 4 --episodes 300
+polar-train --algorithm sagppo --scene 2025-08-05 --seeds 0 1 2 3 4
 ```
 
-运行五种对照算法：
+运行完整算法集合（S-IACO、SAG-PPO 和各对照算法）：
+
+```bash
+polar-train --algorithm all --scene 2025-08-05 --seeds 0 1 2 3 4
+```
+
+单独运行全局规划对照算法：
 
 ```bash
 polar-train --algorithm baselines --scene 2025-08-05 --seeds 0 1 2 3 4
 ```
 
-`--scene all` 可用于全部 12 个场景。结果汇总、路径、训练记录、模型权重和搜索日志保存在 `results/` 下；论文结果数据保存在 `results/paper/`。
+`--scene all` 可用于全部 12 个场景。训练默认最多 500 轮、每轮最多 420 个决策步；结果汇总、路径、训练记录、模型权重和搜索日志写入 `results/runs/`。论文使用的汇总数据保存在 `results/paper/`。
 
 ## 算法模块
 

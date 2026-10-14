@@ -8,6 +8,7 @@ from typing import Iterable
 
 import numpy as np
 
+from .config import PAPER, UNSPECIFIED
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = ROOT / "data" / "environments" / "projected_nsr_2025"
@@ -52,7 +53,13 @@ class Scene:
 
     @cached_property
     def blocked(self) -> np.ndarray:
-        return (self.land_mask > 0) | (self.chart_block_mask > 0) | (self.ice_block_mask > 0)
+        # Eq. (2) hard-infeasibility mask includes the ship's 0.80 ice limit.
+        return (
+            (self.land_mask > 0)
+            | (self.chart_block_mask > 0)
+            | (self.ice_block_mask > 0)
+            | (self.ice_concentration >= PAPER.vessel_max_ice_concentration)
+        )
 
     def in_bounds(self, point: tuple[int, int]) -> bool:
         row, col = point
@@ -86,22 +93,23 @@ class Scene:
         a: tuple[int, int],
         b: tuple[int, int],
         *,
-        ice_weight: float = 3.0,
-        thickness_weight: float = 0.75,
-        chart_weight: float = 3.0,
-        current_weight: float = 0.5,
-        ais_weight: float = 0.2,
+        ice_weight: float = float(UNSPECIFIED["route_cost_weights"]["ice"]),
+        thickness_weight: float = float(UNSPECIFIED["route_cost_weights"]["thickness"]),
+        chart_weight: float = float(UNSPECIFIED["route_cost_weights"]["risk"]),
+        current_weight: float = float(UNSPECIFIED["route_cost_weights"]["current"]),
+        ais_weight: float = 0.0,
     ) -> float:
         length = float(np.hypot(b[0] - a[0], b[1] - a[1]))
         ice = 0.5 * (float(self.ice_concentration[a]) + float(self.ice_concentration[b]))
         thick = 0.5 * (float(self.ice_thickness[a]) + float(self.ice_thickness[b]))
         chart = 0.5 * (float(self.chart_risk[a]) + float(self.chart_risk[b]))
-        corridor = 0.5 * (float(self.ais_corridor[a]) + float(self.ais_corridor[b]))
         assist = self.current_assist(a, b)
+        normalized_thick = float(np.clip(thick / 2.0, 0.0, 1.0))
+        soft = float(np.clip(ice_weight * ice + thickness_weight * normalized_thick + chart_weight * chart, 0.0, 1.0))
         multiplier = (
-            1.0 + ice_weight * ice + thickness_weight * thick
-            + chart_weight * chart - current_weight * assist
-            + ais_weight * (1.0 - corridor)
+            1.0 + ice_weight * ice + thickness_weight * normalized_thick
+            + chart_weight * chart + float(UNSPECIFIED["route_cost_weights"]["soft"]) * soft
+            - current_weight * assist + ais_weight * (1.0 - 0.5 * (float(self.ais_corridor[a]) + float(self.ais_corridor[b])))
         )
         return length * max(0.25, multiplier)
 

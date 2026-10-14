@@ -4,7 +4,11 @@ import heapq
 import itertools
 import math
 
+from .config import UNSPECIFIED
 from .scene import NEIGHBOR_STEPS, Scene
+
+
+_COST_WEIGHTS = UNSPECIFIED["route_cost_weights"]
 
 
 def astar(
@@ -12,11 +16,11 @@ def astar(
     start: tuple[int, int] | None = None,
     goal: tuple[int, int] | None = None,
     *,
-    ice_weight: float = 3.0,
-    thickness_weight: float = 0.75,
-    chart_weight: float = 3.0,
-    current_weight: float = 0.5,
-    ais_weight: float = 0.2,
+    ice_weight: float = float(_COST_WEIGHTS["ice"]),
+    thickness_weight: float = float(_COST_WEIGHTS["thickness"]),
+    chart_weight: float = float(_COST_WEIGHTS["risk"]),
+    current_weight: float = float(_COST_WEIGHTS["current"]),
+    ais_weight: float = 0.0,
     turn_weight: float = 0.0,
     bounds: tuple[int, int, int, int] | None = None,
 ) -> list[tuple[int, int]] | None:
