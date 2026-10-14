@@ -72,6 +72,9 @@ def run(args: argparse.Namespace) -> Path:
         output_root = ROOT / output_root
     output_root.mkdir(parents=True, exist_ok=True)
     dates = _scene_list(args.scene)
+    seeds = list(dict.fromkeys(int(seed) for seed in args.seeds))
+    if not seeds:
+        raise ValueError("At least one random seed is required")
     summaries: list[dict[str, Any]] = []
 
     for date in dates:
@@ -82,51 +85,52 @@ def run(args: argparse.Namespace) -> Path:
         checkpoint_dir = scene_dir / "checkpoints"
         selected = args.algorithm
 
-        if selected in {"baselines", "all"}:
-            for name in BASELINE_NAMES:
+        for seed in seeds:
+            if selected in {"baselines", "all"}:
+                for name in BASELINE_NAMES:
+                    started = time.perf_counter()
+                    route, history = run_baseline(
+                        scene, name, seed=seed, ants=args.ants, iterations=args.iterations
+                    )
+                    elapsed = time.perf_counter() - started
+                    _save_route(route_dir / f"{name}_seed{seed}.csv", route)
+                    summaries.append(_record(date, name, seed, route, elapsed_seconds=elapsed))
+                    if history:
+                        _write_dicts(search_dir / f"{name}_seed{seed}.csv", history)
+
+            prior: list[tuple[int, int]] | None = None
+            if selected in {"siaco", "sagppo", "all"}:
                 started = time.perf_counter()
-                route, history = run_baseline(
-                    scene, name, seed=args.seed, ants=args.ants, iterations=args.iterations
+                prior, history = siaco(scene, ants=args.ants, iterations=args.iterations, seed=seed)
+                elapsed = time.perf_counter() - started
+                _save_route(route_dir / f"siaco_seed{seed}.csv", prior)
+                _write_dicts(search_dir / f"siaco_seed{seed}.csv", history)
+                summaries.append(_record(date, "siaco", seed, prior, elapsed_seconds=elapsed))
+
+            if selected in {"sagppo", "all"}:
+                assert prior is not None
+                started = time.perf_counter()
+                route, training_log, agent = train_sag_ppo(
+                    scene,
+                    prior,
+                    episodes=args.episodes,
+                    seed=seed,
+                    device=args.device,
+                    window=args.window,
                 )
                 elapsed = time.perf_counter() - started
-                _save_route(route_dir / f"{name}_seed{args.seed}.csv", route)
-                summaries.append(_record(date, name, args.seed, route, elapsed_seconds=elapsed))
-                if history:
-                    _write_dicts(search_dir / f"{name}_seed{args.seed}.csv", history)
-
-        prior: list[tuple[int, int]] | None = None
-        if selected in {"siaco", "sagppo", "all"}:
-            started = time.perf_counter()
-            prior, history = siaco(scene, ants=args.ants, iterations=args.iterations, seed=args.seed)
-            elapsed = time.perf_counter() - started
-            _save_route(route_dir / f"siaco_seed{args.seed}.csv", prior)
-            _write_dicts(search_dir / f"siaco_seed{args.seed}.csv", history)
-            summaries.append(_record(date, "siaco", args.seed, prior, elapsed_seconds=elapsed))
-
-        if selected in {"sagppo", "all"}:
-            assert prior is not None
-            started = time.perf_counter()
-            route, training_log, agent = train_sag_ppo(
-                scene,
-                prior,
-                episodes=args.episodes,
-                seed=args.seed,
-                device=args.device,
-                window=args.window,
-            )
-            elapsed = time.perf_counter() - started
-            _save_route(route_dir / f"sagppo_seed{args.seed}.csv", route)
-            _write_dicts(scene_dir / f"sagppo_training_seed{args.seed}.csv", training_log)
-            checkpoint_dir.mkdir(parents=True, exist_ok=True)
-            agent.save(str(checkpoint_dir / f"sagppo_seed{args.seed}.pt"))
-            summaries.append(_record(date, "sagppo", args.seed, route, elapsed_seconds=elapsed))
+                _save_route(route_dir / f"sagppo_seed{seed}.csv", route)
+                _write_dicts(scene_dir / f"sagppo_training_seed{seed}.csv", training_log)
+                checkpoint_dir.mkdir(parents=True, exist_ok=True)
+                agent.save(str(checkpoint_dir / f"sagppo_seed{seed}.pt"))
+                summaries.append(_record(date, "sagppo", seed, route, elapsed_seconds=elapsed))
 
     summary_path = output_root / "summary.csv"
     _write_dicts(summary_path, summaries)
     run_info = {
         "algorithm": args.algorithm,
         "scenes": dates,
-        "seed": args.seed,
+        "seeds": seeds,
         "episodes": args.episodes if args.algorithm in {"sagppo", "all"} else None,
         "siaco_ants": args.ants,
         "siaco_iterations": args.iterations,
@@ -142,7 +146,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run the included polar route planners on fixed scene maps.")
     parser.add_argument("--algorithm", choices=("siaco", "sagppo", "baselines", "all"), default="all")
     parser.add_argument("--scene", default="2025-08-05", help="One scene date or 'all'.")
-    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2, 3, 4],
+                        help="Random seeds for each algorithm (default: 0 through 4).")
     parser.add_argument("--episodes", type=int, default=300, help="SAG-PPO training episodes per scene.")
     parser.add_argument("--ants", type=int, default=30, help="Ants per S-IACO/ACO iteration.")
     parser.add_argument("--iterations", type=int, default=80, help="S-IACO/ACO search iterations.")

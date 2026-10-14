@@ -2,5 +2,9 @@
 venv/
 __pycache__/
 *.py[cod]
-results/
+results/*
+!results/paper/
+results/paper/*
+!results/paper/*.csv
+!results/paper/README.md
 *.pt
