@@ -1,0 +1,321 @@
+{
+  "dataset": "Projected Northern Sea Route fixed environment snapshots",
+  "scene_count": 12,
+  "grid_shape_rows_cols": [
+    325,
+    209
+  ],
+  "cell_size_km": 18.0,
+  "projection": "Polar stereographic north, +lat_0=90 +lat_ts=70 +lon_0=0, metres",
+  "dates": [
+    {
+      "date": "2025-08-05",
+      "file": "20250805.npz",
+      "display_name": "Projected NSR reference corridor, 2025-08-05",
+      "start_rc": [
+        36,
+        36
+      ],
+      "goal_rc": [
+        285,
+        134
+      ],
+      "shape_rows_cols": [
+        325,
+        209
+      ],
+      "file_size_bytes": 452628,
+      "bounds_projected_m": [
+        -1162036.595541163,
+        -2576466.4490672755,
+        2594268.8320260267,
+        3259872.3380352156
+      ]
+    },
+    {
+      "date": "2025-08-11",
+      "file": "20250811.npz",
+      "display_name": "Projected NSR reference corridor, 2025-08-11",
+      "start_rc": [
+        36,
+        36
+      ],
+      "goal_rc": [
+        285,
+        134
+      ],
+      "shape_rows_cols": [
+        325,
+        209
+      ],
+      "file_size_bytes": 452429,
+      "bounds_projected_m": [
+        -1162036.595541163,
+        -2576466.4490672755,
+        2594268.8320260267,
+        3259872.3380352156
+      ]
+    },
+    {
+      "date": "2025-08-20",
+      "file": "20250820.npz",
+      "display_name": "Projected NSR reference corridor, 2025-08-20",
+      "start_rc": [
+        36,
+        36
+      ],
+      "goal_rc": [
+        285,
+        134
+      ],
+      "shape_rows_cols": [
+        325,
+        209
+      ],
+      "file_size_bytes": 453237,
+      "bounds_projected_m": [
+        -1162036.595541163,
+        -2576466.4490672755,
+        2594268.8320260267,
+        3259872.3380352156
+      ]
+    },
+    {
+      "date": "2025-08-29",
+      "file": "20250829.npz",
+      "display_name": "Projected NSR reference corridor, 2025-08-29",
+      "start_rc": [
+        36,
+        36
+      ],
+      "goal_rc": [
+        285,
+        134
+      ],
+      "shape_rows_cols": [
+        325,
+        209
+      ],
+      "file_size_bytes": 453031,
+      "bounds_projected_m": [
+        -1162036.595541163,
+        -2576466.4490672755,
+        2594268.8320260267,
+        3259872.3380352156
+      ]
+    },
+    {
+      "date": "2025-09-05",
+      "file": "20250905.npz",
+      "display_name": "Projected NSR reference corridor, 2025-09-05",
+      "start_rc": [
+        36,
+        36
+      ],
+      "goal_rc": [
+        285,
+        134
+      ],
+      "shape_rows_cols": [
+        325,
+        209
+      ],
+      "file_size_bytes": 451952,
+      "bounds_projected_m": [
+        -1162036.595541163,
+        -2576466.4490672755,
+        2594268.8320260267,
+        3259872.3380352156
+      ]
+    },
+    {
+      "date": "2025-09-11",
+      "file": "20250911.npz",
+      "display_name": "Projected NSR reference corridor, 2025-09-11",
+      "start_rc": [
+        36,
+        36
+      ],
+      "goal_rc": [
+        285,
+        134
+      ],
+      "shape_rows_cols": [
+        325,
+        209
+      ],
+      "file_size_bytes": 452217,
+      "bounds_projected_m": [
+        -1162036.595541163,
+        -2576466.4490672755,
+        2594268.8320260267,
+        3259872.3380352156
+      ]
+    },
+    {
+      "date": "2025-09-20",
+      "file": "20250920.npz",
+      "display_name": "Projected NSR reference corridor, 2025-09-20",
+      "start_rc": [
+        36,
+        36
+      ],
+      "goal_rc": [
+        285,
+        134
+      ],
+      "shape_rows_cols": [
+        325,
+        209
+      ],
+      "file_size_bytes": 451862,
+      "bounds_projected_m": [
+        -1162036.595541163,
+        -2576466.4490672755,
+        2594268.8320260267,
+        3259872.3380352156
+      ]
+    },
+    {
+      "date": "2025-09-29",
+      "file": "20250929.npz",
+      "display_name": "Projected NSR reference corridor, 2025-09-29",
+      "start_rc": [
+        36,
+        36
+      ],
+      "goal_rc": [
+        285,
+        134
+      ],
+      "shape_rows_cols": [
+        325,
+        209
+      ],
+      "file_size_bytes": 450851,
+      "bounds_projected_m": [
+        -1162036.595541163,
+        -2576466.4490672755,
+        2594268.8320260267,
+        3259872.3380352156
+      ]
+    },
+    {
+      "date": "2025-09-30",
+      "file": "20250930.npz",
+      "display_name": "Projected NSR reference corridor, 2025-09-30",
+      "start_rc": [
+        36,
+        36
+      ],
+      "goal_rc": [
+        285,
+        134
+      ],
+      "shape_rows_cols": [
+        325,
+        209
+      ],
+      "file_size_bytes": 450608,
+      "bounds_projected_m": [
+        -1162036.595541163,
+        -2576466.4490672755,
+        2594268.8320260267,
+        3259872.3380352156
+      ]
+    },
+    {
+      "date": "2025-10-01",
+      "file": "20251001.npz",
+      "display_name": "Projected NSR reference corridor, 2025-10-01",
+      "start_rc": [
+        36,
+        36
+      ],
+      "goal_rc": [
+        285,
+        134
+      ],
+      "shape_rows_cols": [
+        325,
+        209
+      ],
+      "file_size_bytes": 451539,
+      "bounds_projected_m": [
+        -1162036.595541163,
+        -2576466.4490672755,
+        2594268.8320260267,
+        3259872.3380352156
+      ]
+    },
+    {
+      "date": "2025-10-05",
+      "file": "20251005.npz",
+      "display_name": "Projected NSR reference corridor, 2025-10-05",
+      "start_rc": [
+        36,
+        36
+      ],
+      "goal_rc": [
+        285,
+        134
+      ],
+      "shape_rows_cols": [
+        325,
+        209
+      ],
+      "file_size_bytes": 253830,
+      "bounds_projected_m": [
+        -1162036.595541163,
+        -2576466.4490672755,
+        2594268.8320260267,
+        3259872.3380352156
+      ]
+    },
+    {
+      "date": "2025-10-12",
+      "file": "20251012.npz",
+      "display_name": "Projected NSR reference corridor, 2025-10-12",
+      "start_rc": [
+        36,
+        36
+      ],
+      "goal_rc": [
+        285,
+        134
+      ],
+      "shape_rows_cols": [
+        325,
+        209
+      ],
+      "file_size_bytes": 451873,
+      "bounds_projected_m": [
+        -1162036.595541163,
+        -2576466.4490672755,
+        2594268.8320260267,
+        3259872.3380352156
+      ]
+    }
+  ],
+  "coordinate_convention": "row-col indices with row 0 at the top; start_rc and goal_rc are stored directly in each NPZ.",
+  "layers": [
+    "ice_class",
+    "ice_concentration",
+    "ice_thickness",
+    "current_u",
+    "current_v",
+    "current_speed",
+    "chart_risk",
+    "chart_block_mask",
+    "land_mask",
+    "ice_block_mask",
+    "bathymetry",
+    "ais_corridor"
+  ],
+  "excluded": [
+    "raw NetCDF/Shapefile/GeoTIFF inputs",
+    "reference routes",
+    "AIS reference route points",
+    "source file paths and source_meta"
+  ]
+}
