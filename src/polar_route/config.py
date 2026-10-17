@@ -1,4 +1,4 @@
-"""Numerical settings for route planning and training."""
+"""Numerical settings for polar route planning."""
 
 from __future__ import annotations
 
@@ -62,48 +62,10 @@ class RouteConfig:
     vessel_ice_concentration_exponent: float = 2.0
     vessel_sfoc_g_kwh: float = 205.0
 
-    # Training.
+    # Algorithm execution.
     ants: int = 30
     siaco_iterations: int = 225
-    max_episodes: int = 500
     max_decision_steps: int = 420
-    seeds: tuple[int, ...] = (0, 1, 2, 3, 4)
-    gamma: float = 0.99
-    gae_lambda: float = 0.95
-    ppo_clip: float = 0.20
-    minibatch_size: int = 128
-    ppo_epochs: int = 3
-    entropy_coef: float = 0.20
-    value_coef: float = 0.50
-    actor_learning_rate: float = 5.0e-5
-    critic_learning_rate: float = 5.0e-5
-    max_grad_norm: float = 0.50
-
-    # Reward normalization scales and coefficients.
-    reward_progress_scale: float = 2.07
-    scale_path_length: float = 6.9853
-    scale_total_cost: float = 113.3375
-    scale_travel_time: float = 0.28135
-    scale_mean_ice: float = 0.075341
-    scale_mean_thickness: float = 0.092083
-    scale_ice_exposure: float = 12.75399
-    scale_turn_complexity: float = 33.90919
-    scale_current_assist: float = 0.557353
-    reward_progress_weight: float = 0.05
-    reward_quality_weight: float = 1.00
-    reward_rejoin_penalty: float = 0.25
-    reward_hard_penalty: float = 1.00
-    reward_soft_penalty: float = 0.0
-    reward_goal_bonus: float = 0.0
-    reward_timeout_penalty: float = 0.0
-
-    # Auxiliary learning coefficients.
-    aux_behavior_cloning: float = 0.02
-    aux_counterfactual: float = 0.08
-    aux_quality_boundary: float = 0.0
-    aux_route_boundary: float = 0.08
-    aux_action_margin: float = 0.20
-    aux_kl: float = 0.01
 
 
 CONFIG = RouteConfig()
@@ -135,7 +97,6 @@ ALGORITHM_SETTINGS = {
     "repeat_smooth_penalty": 0.10,
     "rejected_rejoin_bias": 0.10,
     "candidate_quality_bias_clip": 2.0,
-    "aux_action_margin_threshold": 0.20,
     "candidate_search_weights": {
         "risk_detour": {"ice": 4.0, "thickness": 1.2, "chart": 1.0, "current": 0.15, "turn": 0.0},
         "current_shift": {"ice": 2.5, "thickness": 0.7, "chart": 0.4, "current": 1.25, "turn": 0.0},

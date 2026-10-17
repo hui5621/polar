@@ -5,12 +5,11 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
-import torch
 
 from .config import CONFIG, ALGORITHM_SETTINGS
 from .geometry import turn_angles_deg
 from .metrics import route_metrics
-from .ppo import DiscretePPO
+from .ppo import SAGPPOPolicy
 from .scene import Scene
 from .search import astar, line_cells, line_is_free, smooth_line_of_sight
 from .siaco import _route_soft_excess, _soft_budget, _soft_risk
@@ -43,8 +42,6 @@ class Decision:
     bias_quality: np.ndarray
     candidates: list[Candidate]
     prior_path: list[tuple[int, int]]
-    prior_score: float
-    progress: float
 
 
 def _local_bounds(scene: Scene, start: tuple[int, int], goal: tuple[int, int], margin: int) -> tuple[int, int, int, int]:
@@ -255,9 +252,7 @@ def build_decisions(scene: Scene, prior: list[tuple[int, int]], *, window: int =
         if not mask[0]:
             raise RuntimeError("KEEP_PRIOR must remain an available fallback")
         base, q_obs, state_bias, quality_bias = _decision_observation(scene, prior, index, candidates)
-        progress = index / max(len(prior) - 1, 1)
-        decisions.append(Decision(base, mask, state_bias, quality_bias, candidates,
-                                  prior_segment, float(prior_metrics["total_cost"]), progress))
+        decisions.append(Decision(base, mask, state_bias, quality_bias, candidates, prior_segment))
         index = end_index
     if not decisions:
         raise RuntimeError("No SAG-PPO decision segments were generated")
@@ -316,50 +311,23 @@ def _gate(decision: Decision, proposed: int, alpha: float) -> int:
     return int(executed)
 
 
-def _evaluate_policy(scene: Scene, decisions: list[Decision], agent: DiscretePPO,
-                     alpha: float) -> list[tuple[int, int]]:
+def refine_route(scene: Scene, prior: list[tuple[int, int]], policy: SAGPPOPolicy, *,
+                 alpha: float = 1.0, window: int = int(ALGORITHM_SETTINGS["candidate_horizon_cells"]),
+                 max_decision_steps: int = CONFIG.max_decision_steps) -> list[tuple[int, int]]:
+    """Refine an S-IACO route with a loaded SAG-PPO policy."""
+    decisions = build_decisions(scene, prior, window=window, max_decision_steps=max_decision_steps)
     previous_action = 0
     previous_accepted = True
     actions: list[int] = []
     for decision in decisions:
         observation = _observation(decision, previous_action, previous_accepted)
         bias = _guided_bias(decision, alpha, previous_action, previous_accepted)
-        proposed, _, _, _ = agent.act(observation, decision.mask, bias, deterministic=True)
+        proposed = policy.act(observation, decision.mask, bias, deterministic=True)
         executed = _gate(decision, proposed, alpha)
         actions.append(executed)
         previous_action = executed
         previous_accepted = proposed == executed
     return _assemble_route(scene, decisions, actions)
-
-
-def _reward(decision: Decision, executed: int, *, is_last: bool, is_timeout: bool = False) -> float:
-    candidate = decision.candidates[executed]
-    prior = decision.candidates[0]
-    scales = np.asarray([
-        CONFIG.scale_path_length, CONFIG.scale_total_cost, CONFIG.scale_travel_time,
-        CONFIG.scale_mean_ice, CONFIG.scale_mean_thickness, CONFIG.scale_ice_exposure,
-        CONFIG.scale_turn_complexity, CONFIG.scale_current_assist,
-    ])
-    gains = np.clip(candidate.deltas / scales, -1.0, 1.0)
-    g_eff = float(np.mean(gains[[0, 1, 2]]))
-    g_risk = float(np.mean(gains[[3, 4, 5]]))
-    g_geo = float(gains[6])
-    g_env = float(gains[7])
-    prior_distance = sum(math.dist(a, b) for a, b in zip(decision.prior_path[:-1], decision.prior_path[1:]))
-    progress = float(np.clip(max(prior_distance, 0.0) / CONFIG.reward_progress_scale, 0.0, 1.0))
-    valid_rejoin = bool(candidate.metrics.get("_rejoin_ok", False))
-    hard_violation = not bool(candidate.metrics.get("_hard_ok", False))
-    soft_violation = not bool(candidate.metrics.get("_soft_ok", False))
-    goal = bool(is_last)
-    return float(
-        CONFIG.reward_progress_weight * progress
-        + CONFIG.reward_quality_weight * (g_eff + g_risk + g_geo + g_env) / 4.0
-        - CONFIG.reward_rejoin_penalty * (not valid_rejoin)
-        - CONFIG.reward_hard_penalty * hard_violation
-        - CONFIG.reward_soft_penalty * soft_violation
-        + CONFIG.reward_goal_bonus * goal
-        - CONFIG.reward_timeout_penalty * bool(is_timeout)
-    )
 
 
 def _assemble_route(scene: Scene, decisions: list[Decision], actions: list[int]) -> list[tuple[int, int]]:
@@ -370,71 +338,3 @@ def _assemble_route(scene: Scene, decisions: list[Decision], actions: list[int])
             raise RuntimeError("Executed candidate does not connect to the route prefix")
         route.extend(segment[1:])
     return route
-
-
-def _seed_everything(seed: int) -> None:
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
-
-
-def train_sag_ppo(scene: Scene, prior: list[tuple[int, int]], *, episodes: int = CONFIG.max_episodes,
-                  seed: int = 0, device: str = "cpu", window: int = int(ALGORITHM_SETTINGS["candidate_horizon_cells"]),
-                  max_decision_steps: int = CONFIG.max_decision_steps) -> tuple[list[tuple[int, int]], list[dict[str, float]], DiscretePPO]:
-    """Train SAG-PPO on a fixed S-IACO prior and six verified local operators."""
-    _seed_everything(seed)
-    decisions = build_decisions(scene, prior, window=window, max_decision_steps=max_decision_steps)
-    agent = DiscretePPO(device=device)
-    history: list[dict[str, float]] = []
-    episode_count = max(1, int(episodes))
-    for episode in range(1, episode_count + 1):
-        alpha = (episode - 1) / max(episode_count - 1, 1)
-        previous_action = 0
-        previous_accepted = True
-        rewards: list[float] = []
-        rollout: list[dict[str, Any]] = []
-        for step, decision in enumerate(decisions):
-            observation = _observation(decision, previous_action, previous_accepted)
-            bias = _guided_bias(decision, alpha, previous_action, previous_accepted)
-            proposed, logp, value, old_probs = agent.act(observation, decision.mask, bias)
-            executed = _gate(decision, proposed, alpha)
-            last_step = step == len(decisions) - 1
-            reward = _reward(
-                decision, executed, is_last=(last_step and decision.prior_path[-1] == scene.goal),
-                is_timeout=(last_step and decision.prior_path[-1] != scene.goal),
-            )
-            rewards.append(reward)
-            rollout.append({
-                "observation": observation,
-                "mask": decision.mask.copy(),
-                "bias": bias.copy(),
-                "proposed_action": proposed,
-                "executed_action": executed,
-                "log_prob": logp,
-                "old_probs": old_probs,
-                "value": value,
-                "reward": reward,
-                "done": step == len(decisions) - 1,
-                "actor_include": float(proposed == executed),
-            })
-            previous_action = executed
-            previous_accepted = proposed == executed
-        losses = agent.update(rollout)
-        evaluation_route = _evaluate_policy(scene, decisions, agent, alpha)
-        metrics = route_metrics(scene, evaluation_route)
-        history.append({
-            "episode": float(episode), "reward": float(np.mean(rewards) if rewards else 0.0),
-            "route_total_cost": float(metrics["total_cost"]),
-            "route_length_km": float(metrics["path_length_km"]),
-            "route_travel_time_h": float(metrics["travel_time_h"] or 0.0),
-            "route_fuel_tons": float(metrics["fuel_tons"] or 0.0),
-            "route_ice_exposure_km": float(metrics["ice_exposure_km"]),
-            "route_turn_complexity_deg": float(metrics["turn_complexity_deg"]),
-            "actor_inclusion_rate": float(np.mean([r["actor_include"] for r in rollout])),
-            "gate_rewrite_rate": float(np.mean([r["actor_include"] == 0.0 for r in rollout])),
-            **losses,
-        })
-
-    final_route = _evaluate_policy(scene, decisions, agent, alpha=1.0)
-    return final_route, history, agent
