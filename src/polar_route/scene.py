@@ -9,6 +9,7 @@ from typing import Iterable
 import numpy as np
 
 from .config import CONFIG, ALGORITHM_SETTINGS
+from .geometry import segment_samples
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = ROOT / "data" / "environments" / "projected_nsr_2025"
@@ -77,16 +78,53 @@ class Scene:
                 continue
             yield nxt
 
-    def current_assist(self, a: tuple[int, int], b: tuple[int, int]) -> float:
+    def segment_fields(
+        self, a: tuple[int, int], b: tuple[int, int]
+    ) -> tuple[list[tuple[int, int, float]], dict[str, float]]:
         dr, dc = b[0] - a[0], b[1] - a[1]
         norm = float(np.hypot(dr, dc))
         if norm == 0.0:
-            return 0.0
-        # Raster rows grow downwards; projected north is therefore -row.
+            return [], {
+                "ice": 0.0, "thickness": 0.0, "normalized_thickness": 0.0,
+                "chart_risk": 0.0, "current_assist": 0.0, "soft_risk": 0.0,
+                "ais_penalty": 0.0,
+            }
+        samples = segment_samples(a, b, rows=self.rows, cols=self.cols)
+        if not samples:
+            return [], {
+                "ice": 0.0, "thickness": 0.0, "normalized_thickness": 0.0,
+                "chart_risk": 0.0, "current_assist": 0.0, "soft_risk": 0.0,
+                "ais_penalty": 0.0,
+            }
         east, north = dc / norm, -dr / norm
-        u = 0.5 * (float(self.current_u[a]) + float(self.current_u[b]))
-        v = 0.5 * (float(self.current_v[a]) + float(self.current_v[b]))
-        return east * u + north * v
+        ice = np.asarray([self.ice_concentration[row, col] for row, col, _ in samples], dtype=np.float64)
+        thickness = np.asarray([self.ice_thickness[row, col] for row, col, _ in samples], dtype=np.float64)
+        normalized_thickness = np.clip(thickness / 2.0, 0.0, 1.0)
+        chart_risk = np.asarray([self.chart_risk[row, col] for row, col, _ in samples], dtype=np.float64)
+        current_assist = np.asarray([
+            east * float(self.current_u[row, col]) + north * float(self.current_v[row, col])
+            for row, col, _ in samples
+        ], dtype=np.float64)
+        cost = ALGORITHM_SETTINGS["route_cost_weights"]
+        soft_risk = np.clip(
+            cost["ice"] * ice + cost["thickness"] * normalized_thickness + cost["risk"] * chart_risk,
+            0.0, 1.0,
+        )
+        ais_penalty = np.asarray([
+            1.0 - float(self.ais_corridor[row, col]) for row, col, _ in samples
+        ], dtype=np.float64)
+        return samples, {
+            "ice": float(np.mean(ice)),
+            "thickness": float(np.mean(thickness)),
+            "normalized_thickness": float(np.mean(normalized_thickness)),
+            "chart_risk": float(np.mean(chart_risk)),
+            "current_assist": float(np.mean(current_assist)),
+            "soft_risk": float(np.mean(soft_risk)),
+            "ais_penalty": float(np.mean(ais_penalty)),
+        }
+
+    def current_assist(self, a: tuple[int, int], b: tuple[int, int]) -> float:
+        return self.segment_fields(a, b)[1]["current_assist"]
 
     def step_cost(
         self,
@@ -100,18 +138,19 @@ class Scene:
         ais_weight: float = 0.0,
     ) -> float:
         length = float(np.hypot(b[0] - a[0], b[1] - a[1]))
-        ice = 0.5 * (float(self.ice_concentration[a]) + float(self.ice_concentration[b]))
-        thick = 0.5 * (float(self.ice_thickness[a]) + float(self.ice_thickness[b]))
-        chart = 0.5 * (float(self.chart_risk[a]) + float(self.chart_risk[b]))
-        assist = self.current_assist(a, b)
-        normalized_thick = float(np.clip(thick / 2.0, 0.0, 1.0))
-        soft = float(np.clip(ice_weight * ice + thickness_weight * normalized_thick + chart_weight * chart, 0.0, 1.0))
+        _, fields = self.segment_fields(a, b)
         multiplier = (
-            1.0 + ice_weight * ice + thickness_weight * normalized_thick
-            + chart_weight * chart + float(ALGORITHM_SETTINGS["route_cost_weights"]["soft"]) * soft
-            - current_weight * assist + ais_weight * (1.0 - 0.5 * (float(self.ais_corridor[a]) + float(self.ais_corridor[b])))
+            1.0 + ice_weight * fields["ice"]
+            + thickness_weight * fields["normalized_thickness"]
+            + chart_weight * fields["chart_risk"]
+            + float(ALGORITHM_SETTINGS["route_cost_weights"]["soft"]) * fields["soft_risk"]
+            - current_weight * fields["current_assist"]
+            + ais_weight * fields["ais_penalty"]
         )
-        return length * max(0.25, multiplier)
+        return length * multiplier
+
+    def search_step_cost(self, a: tuple[int, int], b: tuple[int, int], **weights: float) -> float:
+        return max(0.25 * float(np.hypot(b[0] - a[0], b[1] - a[1])), self.step_cost(a, b, **weights))
 
 
 def list_scenes() -> list[str]:
@@ -161,3 +200,4 @@ def load_scene(scene: str | int) -> Scene:
     if scene_data.blocked[scene_data.start] or scene_data.blocked[scene_data.goal]:
         raise ValueError(f"Start or goal is blocked in scene {scene_data.date}")
     return scene_data
+

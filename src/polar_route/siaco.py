@@ -8,7 +8,7 @@ from functools import lru_cache
 import numpy as np
 
 from .config import CONFIG, ALGORITHM_SETTINGS
-from .geometry import turn_angles_deg
+from .geometry import segment_samples, turn_angles_deg
 from .metrics import route_metrics
 from .scene import NEIGHBOR_STEPS, Scene, list_scenes, load_scene
 from .search import astar, line_cells, line_is_free
@@ -138,13 +138,19 @@ def _route_soft_excess(scene: Scene, route: list[tuple[int, int]], threshold: fl
     total = 0.0
     for a, b in zip(route[:-1], route[1:]):
         distance = math.dist(a, b) * scene.cell_km
-        steps = max(1, int(math.ceil(math.dist(a, b) / float(ALGORITHM_SETTINGS["route_sample_step_cells"]))))
-        for index in range(1, steps + 1):
-            t = index / steps
-            r = int(np.clip(math.floor(a[0] + t * (b[0] - a[0]) + 0.5), 0, scene.rows - 1))
-            c = int(np.clip(math.floor(a[1] + t * (b[1] - a[1]) + 0.5), 0, scene.cols - 1))
-            total += max(float(soft[r, c]) - threshold, 0.0) * distance / steps
+        samples = segment_samples(a, b, rows=scene.rows, cols=scene.cols)
+        if not samples:
+            continue
+        edge_excess = sum(max(float(soft[row, col]) - threshold, 0.0) for row, col, _ in samples)
+        total += edge_excess * distance / len(samples)
     return total
+
+
+def _soft_feasible(scene: Scene, route: list[tuple[int, int]]) -> bool:
+    soft = _soft_risk(scene)
+    threshold = float(np.quantile(soft[~scene.blocked], float(ALGORITHM_SETTINGS["soft_risk_threshold_quantile"])))
+    route_length = float(_metrics(scene, route)["path_length_km"])
+    return _route_soft_excess(scene, route, threshold) <= _soft_budget(scene, route_length)
 
 
 @lru_cache(maxsize=4096)
@@ -254,10 +260,7 @@ def _archive_add(scene: Scene, archive: list[list[tuple[int, int]]], candidate: 
         return archive
     if not _metrics(scene, candidate)["dynamic_feasible"]:
         return archive
-    soft = _soft_risk(scene)
-    threshold = float(np.quantile(soft[~scene.blocked], float(ALGORITHM_SETTINGS["soft_risk_threshold_quantile"])))
-    budget = _soft_budget(scene, float(_objectives(scene, candidate)[0]))
-    if _route_soft_excess(scene, candidate, threshold) > budget:
+    if not _soft_feasible(scene, candidate):
         return archive
     eps = _epsilon(scene)
     candidate_obj = _objectives(scene, candidate)
@@ -421,7 +424,8 @@ def siaco(scene: Scene, *, ants: int = CONFIG.ants, iterations: int = CONFIG.sia
             if route is None or route[-1] != scene.goal:
                 continue
             route = local_repair(scene, route)
-            if not _hard_safe(scene, route) or not _metrics(scene, route)["dynamic_feasible"]:
+            if (not _hard_safe(scene, route) or not _metrics(scene, route)["dynamic_feasible"]
+                    or not _soft_feasible(scene, route)):
                 continue
             target = routes_x if exploit else routes_e
             target.append(route)
@@ -442,3 +446,4 @@ def siaco(scene: Scene, *, ants: int = CONFIG.ants, iterations: int = CONFIG.sia
     if not archive:
         raise RuntimeError(f"S-IACO found no feasible route for {scene.date}")
     return _select_archive_route(scene, archive), history
+

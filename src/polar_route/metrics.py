@@ -6,7 +6,7 @@ from typing import Any
 import numpy as np
 
 from .config import ALGORITHM_SETTINGS
-from .geometry import segment_samples, turn_angles_deg
+from .geometry import turn_angles_deg
 from .scene import Scene
 from .vessel import evaluate_route_vessel
 
@@ -32,41 +32,29 @@ def route_metrics(scene: Scene, route: list[tuple[int, int]]) -> dict[str, Any]:
         distance_km = grid_distance * scene.cell_km
         if distance_km <= 1e-12:
             continue
-        samples = segment_samples(a, b, rows=scene.rows, cols=scene.cols)
+        samples, fields = scene.segment_fields(a, b)
         if not samples:
             continue
-        east, north = dc / grid_distance, -dr / grid_distance
-        values = {name: [] for name in sums}
         exposed = 0
         for row, col, _ in samples:
             ice = float(scene.ice_concentration[row, col])
-            thick = float(scene.ice_thickness[row, col])
-            risk = float(scene.chart_risk[row, col])
-            assist = east * float(scene.current_u[row, col]) + north * float(scene.current_v[row, col])
-            values["ice"].append(ice)
-            values["thick"].append(thick)
-            values["risk"].append(risk)
-            values["assist"].append(assist)
             exposed += int(ice > float(ALGORITHM_SETTINGS["ice_exposure_threshold"]))
             blocked_samples += int(scene.blocked[row, col])
-        means = {name: float(np.mean(v)) if v else 0.0 for name, v in values.items()}
+        means = {
+            "ice": fields["ice"], "thick": fields["thickness"],
+            "risk": fields["chart_risk"], "assist": fields["current_assist"],
+        }
         for name, value in means.items():
             sums[name] += distance_km * value
         exposure_km += distance_km * exposed / len(samples)
 
         # Equation (4): integrate the segment cost along physical route length.
-        normalized_thick = float(np.clip(means["thick"] / 2.0, 0.0, 1.0))
-        soft_risk = float(np.clip(
-            cost_cfg["ice"] * means["ice"]
-            + cost_cfg["thickness"] * normalized_thick
-            + cost_cfg["risk"] * means["risk"], 0.0, 1.0
-        ))
         multiplier = (
             1.0
             + cost_cfg["ice"] * means["ice"]
-            + cost_cfg["thickness"] * normalized_thick
+            + cost_cfg["thickness"] * fields["normalized_thickness"]
             + cost_cfg["risk"] * means["risk"]
-            + cost_cfg["soft"] * soft_risk
+            + cost_cfg["soft"] * fields["soft_risk"]
             - cost_cfg["current"] * means["assist"]
         )
         integrated_cost += distance_km * multiplier
@@ -116,3 +104,4 @@ def route_metrics(scene: Scene, route: list[tuple[int, int]]) -> dict[str, Any]:
         "FuelTons": metrics["fuel_tons"],
     })
     return metrics
+

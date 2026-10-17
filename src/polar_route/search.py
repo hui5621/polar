@@ -60,7 +60,7 @@ def astar(
                 continue
             dr, dc = nxt[0] - row, nxt[1] - col
             direction = NEIGHBOR_STEPS.index((dr, dc))
-            edge = scene.step_cost(
+            edge = scene.search_step_cost(
                 point, nxt,
                 ice_weight=ice_weight,
                 thickness_weight=thickness_weight,
@@ -139,3 +139,4 @@ def smooth_line_of_sight(scene: Scene, route: list[tuple[int, int]]) -> list[tup
         output.extend(line_cells(route[index], route[target])[1:])
         index = target
     return output
+

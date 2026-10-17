@@ -238,10 +238,10 @@ def build_decisions(scene: Scene, prior: list[tuple[int, int]], *, window: int =
         mask[0] = True
         if apply_guidance_mask:
             turn_pressure = candidates[0].turn_pressure
-            if turn_pressure > CONFIG.turn_mask_restrict:
+            if turn_pressure >= CONFIG.turn_mask_restrict:
                 mask[2] = False
                 mask[3] = False
-            if turn_pressure > CONFIG.turn_mask_shorten:
+            if turn_pressure >= CONFIG.turn_mask_shorten:
                 mask[1] = False
             if candidates[1].deltas[1] < -1e-9:
                 mask[1] = False
@@ -338,3 +338,4 @@ def _assemble_route(scene: Scene, decisions: list[Decision], actions: list[int])
             raise RuntimeError("Executed candidate does not connect to the route prefix")
         route.extend(segment[1:])
     return route
+
